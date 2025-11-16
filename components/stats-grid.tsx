@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { StatsResponse, StreamLagSnapshot } from "@/lib/types"
 
 type LagLevel = "ok" | "warn" | "bad"
@@ -9,31 +10,39 @@ interface LagDisplay {
 
 /**
  * Format lag (in seconds) into a human-friendly label + level.
- *  - < 50ms  => "ok"
- *  - < 500ms => "warn"
- *  - else    => "bad"
+ *
+ * Rough thresholds:
+ *  - < 5s     => "ok"
+ *  - < 120s   => "warn"
+ *  - else     => "bad"
  */
 function formatLagSeconds(sec: number | undefined | null): LagDisplay {
   if (sec == null || sec <= 0) {
     return { label: "—", level: "ok" }
   }
 
-  const ms = sec * 1000
-
-  if (ms < 1) {
-    return { label: "<1ms", level: "ok" }
-  }
-
-  if (ms < 1_000) {
+  // Sub-second: show in ms, always "ok"
+  if (sec < 1) {
+    const ms = sec * 1000
     const val = ms < 10 ? ms.toFixed(1) : Math.round(ms).toString()
-    const level: LagLevel = ms < 50 ? "ok" : ms < 500 ? "warn" : "bad"
-    return { label: `${val}ms`, level }
+    return { label: `${val}ms`, level: "ok" }
   }
 
-  const s = sec
-  const val = s < 10 ? s.toFixed(2) : s.toFixed(1)
-  const level: LagLevel = s < 1 ? "ok" : s < 5 ? "warn" : "bad"
-  return { label: `${val}s`, level }
+  // 1–5 seconds: show as seconds, still "ok"
+  if (sec < 5) {
+    const val = sec < 10 ? sec.toFixed(2) : sec.toFixed(1)
+    return { label: `${val}s`, level: "ok" }
+  }
+
+  // 5–120 seconds: warn
+  if (sec < 120) {
+    const val = sec < 10 ? sec.toFixed(2) : sec.toFixed(1)
+    return { label: `${val}s`, level: "warn" }
+  }
+
+  // 120+ seconds: bad
+  const val = sec < 10 ? sec.toFixed(2) : sec.toFixed(1)
+  return { label: `${val}s`, level: "bad" }
 }
 
 function badgeClass(level: LagLevel): string {
@@ -186,7 +195,13 @@ export function StatsGrid({ stats, lag }: StatsGridProps) {
           </div>
           <p className="text-xs text-muted-foreground mt-2">
             Age of the most recent record in each stream. Spikes usually
-            indicate news events or backpressure in the pipeline.
+            indicate news events or backpressure in the pipeline.{" "}
+            <Link
+              href="/faq#lag-and-performance"
+              className="underline underline-offset-2 text-[0.7rem] text-primary hover:text-primary/80"
+            >
+              Details in FAQ
+            </Link>
           </p>
         </div>
       </div>

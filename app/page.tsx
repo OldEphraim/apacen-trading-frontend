@@ -75,9 +75,10 @@ export default function HomePage() {
   return (
     <main className="min-h-screen">
       <section className="container mx-auto px-4 py-16 space-y-10">
-        <HeroSection
+      <HeroSection
           eventsProcessed={eventsProcessed}
           statsError={statsError}
+          hasStats={hasValidStats}
         />
 
         {hasValidStats && (
@@ -88,13 +89,20 @@ export default function HomePage() {
 
         {/* Strategies snapshot */}
         <div className="grid gap-4 lg:grid-cols-2 mb-8">
-          {strategiesError && (
+          {strategiesError && topStrategies.length === 0 && (
             <div className="lg:col-span-2 text-xs text-destructive border border-border rounded-lg p-4">
               Failed to load strategy summaries from backend.
             </div>
           )}
 
-          {!strategiesError && topStrategies.length > 0 ? (
+          {strategiesError && topStrategies.length > 0 && (
+            <div className="lg:col-span-2 text-[0.7rem] text-amber-800 bg-amber-100/80 border border-amber-300 rounded-md px-3 py-2 mb-1">
+              Latest strategy refresh failed; showing the last successful
+              snapshot.
+            </div>
+          )}
+
+          {topStrategies.length > 0 ? (
             topStrategies.map((s) => {
               const total = s.total_pnl
               const pnlClass =
@@ -117,8 +125,9 @@ export default function HomePage() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Paper-trading strategy backed by live Polymarket
-                    data.
+                    Experimental paper-trading strategy backed by live
+                    Polymarket data. Large gains or losses here are simulated,
+                    not live capital.
                   </p>
                   <div className="flex items-center gap-4 text-xs font-mono">
                     <span>
@@ -131,9 +140,7 @@ export default function HomePage() {
                     <span className="text-muted-foreground">
                       Last trade:{" "}
                       {s.last_trade_at
-                        ? new Date(
-                            s.last_trade_at
-                          ).toLocaleString()
+                        ? new Date(s.last_trade_at).toLocaleString()
                         : "—"}
                     </span>
                   </div>
@@ -143,44 +150,44 @@ export default function HomePage() {
           ) : (
             !strategiesError && (
               <div className="lg:col-span-2 text-sm text-muted-foreground border border-border rounded-lg p-4">
-                Strategy microservice is warming up or idle. Once
-                paper trades start flowing, strategies and P&amp;L
-                will appear here.
+                Strategy microservice is warming up or idle. Once paper trades
+                start flowing, strategies and P&amp;L will appear here.
               </div>
             )
           )}
         </div>
 
-        {/* System architecture blurb */}
+        {/* Data streams overview */}
         <div className="rounded-lg bg-muted p-6 border border-border">
           <h3 className="mb-4 font-mono font-semibold text-foreground">
-            System Architecture
+            What the data streams mean
           </h3>
           <div className="grid gap-4 md:grid-cols-3 text-sm text-muted-foreground">
             <div>
               <div className="text-xs text-primary font-mono mb-1">
-                GATHER &amp; FEATURE
+                Quotes
               </div>
-              Websocket gatherer ingests quotes and trades; a feature
-              engine keeps rolling windows in memory and emits signals
-              when price, volatility, or liquidity change.
+              Top-of-book snapshots: best bid, best ask, and mid-price for each
+              market, updated whenever quotes move. This is the “heartbeat” of
+              the order book and is what most of the short-horizon features are
+              built from.
             </div>
             <div>
               <div className="text-xs text-primary font-mono mb-1">
-                PERSIST &amp; ARCHIVE
+                Trades
               </div>
-              Batches flow through a persister using Postgres COPY into
-              hourly-partitioned tables. An archiver streams old
-              partitions to S3, and a janitor drops them to keep
-              disk/WAL healthy.
+              Individual fills: every executed trade with size, price, and
+              direction. This is where volume, flow, and realized PnL ultimately
+              come from, and what strategies care about when orders actually hit.
             </div>
             <div>
               <div className="text-xs text-primary font-mono mb-1">
-                STRATEGIES &amp; API
+                Features
               </div>
-              A strategies microservice runs paper trades; an API
-              service exposes stats, fills, P&amp;L, and positions to
-              this frontend and other clients.
+              Rolling signals computed from quotes and trades: short-horizon
+              returns, volatility estimates, z-scores, and other “is something
+              interesting happening here?” flags used by the paper-trading
+              engine.
             </div>
           </div>
         </div>

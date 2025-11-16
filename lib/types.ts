@@ -27,6 +27,14 @@ export interface StatsResponse {
     total_pnl: number
   }
   
+  export interface MarketEventMetadata {
+    ret_1m?: number
+    zscore_5m?: number
+    mean_revert_hint?: string
+    percent_change?: number
+    [key: string]: unknown
+  }
+  
   export interface MarketEvent {
     token_id: string
     event_type: string | null
@@ -34,11 +42,9 @@ export interface StatsResponse {
     new_value?: number | null
     detected_at: string
     question?: string | null
-    metadata?: {
-      percent_change?: number
-      [key: string]: unknown
-    }
-  }
+    outcome?: string | null
+    metadata?: MarketEventMetadata | null
+  }  
   
   export interface StreamLagSnapshot {
     quotes_lag_sec: number

@@ -11,16 +11,17 @@ export function StrategiesTable({
 
   if (!rows.length) {
     return (
-      <div className="text-sm text-muted-foreground border border-border rounded-lg p-4">
-        No strategies found yet. Once the paper-trading engine runs, they&apos;ll appear here.
+      <div className="text-sm text-muted-foreground border border-border rounded-lg p-4 bg-muted/40">
+        No strategies found yet. Once the paper-trading engine runs,
+        they&apos;ll appear here.
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-black/40">
+    <div className="overflow-x-auto rounded-lg border border-border bg-muted">
       <table className="min-w-full text-sm">
-        <thead className="bg-black/60">
+        <thead className="bg-muted/80">
           <tr>
             <th className="px-3 py-2 text-left font-medium text-muted-foreground">
               Strategy
@@ -47,15 +48,15 @@ export function StrategiesTable({
             const total = s.total_pnl
             const pnlClass =
               total > 0
-                ? "text-green-400"
+                ? "text-green-500"
                 : total < 0
-                ? "text-red-400"
+                ? "text-red-500"
                 : "text-foreground"
 
             return (
               <tr
                 key={s.name}
-                className="border-t border-border/60 hover:bg-white/5"
+                className="border-t border-border/60 hover:bg-background/40"
               >
                 <td className="px-3 py-2">{s.name}</td>
                 <td className="px-3 py-2 text-right">

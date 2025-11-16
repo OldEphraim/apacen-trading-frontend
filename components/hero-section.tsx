@@ -5,13 +5,16 @@ import Link from "next/link"
 interface HeroSectionProps {
   eventsProcessed: number
   statsError?: unknown
+  hasStats?: boolean
 }
 
 export function HeroSection({
   eventsProcessed,
   statsError,
+  hasStats,
 }: HeroSectionProps) {
-  const hasError = Boolean(statsError)
+  // Only show the hard error if we *don’t* have any stats yet.
+  const showStatsError = Boolean(statsError) && !hasStats
 
   return (
     <div className="text-center space-y-3">
@@ -27,23 +30,29 @@ export function HeroSection({
         This dashboard is a thin window into that data plane.
       </p>
       <div className="flex flex-wrap justify-center gap-3 mt-4 text-sm">
-        <Link
-          href="/strategies"
-          className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
-        >
-          View strategy performance
-        </Link>
         <a
           href="https://oldephraim.substack.com"
           target="_blank"
           rel="noopener noreferrer"
+          className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
+        >
+          How this system works (longform)
+        </a>
+        <Link
+          href="/faq"
           className="inline-flex items-center px-4 py-2 rounded-md border border-border text-foreground hover:bg-muted transition"
         >
-          Read the Polymarket write-up
-        </a>
+          Read the dashboard FAQ
+        </Link>
+        <Link
+          href="/strategies"
+          className="inline-flex items-center px-3 py-1 rounded-md text-xs font-mono text-muted-foreground border border-dashed border-border hover:text-foreground hover:border-foreground/60 transition"
+        >
+          View strategy P&amp;L
+        </Link>
       </div>
 
-      {hasError && (
+      {showStatsError && (
         <p className="mt-3 text-xs text-destructive">
           Failed to load stats from backend. Check that your Go API is
           running and that{" "}

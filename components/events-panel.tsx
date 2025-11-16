@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import useSWR from "swr"
+import Link from "next/link"
 import { MarketEvent } from "@/lib/types"
 
 type Direction = "up" | "down" | "flat" | null
@@ -27,6 +28,41 @@ const fetcher = async (url: string) => {
   }
 
   return data as MarketEvent[]
+}
+
+/**
+ * Deduplicate events so we don't show obvious repeats.
+ *
+ * - For `new_market`, we expect at most one logical event per token,
+ *   so we dedupe by (token_id, event_type).
+ * - For price jumps / state_extreme, we dedupe by
+ *   (token_id, event_type, old_value, new_value) when prices exist;
+ *   if they don't, we fall back to (token_id, event_type, detected_at).
+ */
+function dedupeEvents(events: MarketEvent[]): MarketEvent[] {
+  const seen = new Set<string>()
+  const result: MarketEvent[] = []
+
+  for (const e of events) {
+    let key = `${e.token_id}|${e.event_type ?? ""}`
+
+    if (e.event_type === "new_market") {
+      // One "new market" per token is enough for the UI.
+    } else if (
+      typeof e.old_value === "number" &&
+      typeof e.new_value === "number"
+    ) {
+      key += `|${e.old_value.toFixed(4)}->${e.new_value.toFixed(4)}`
+    } else if (e.detected_at) {
+      key += `|${e.detected_at}`
+    }
+
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(e)
+  }
+
+  return result
 }
 
 function computeEventChange(event: MarketEvent): {
@@ -82,28 +118,29 @@ interface EventsPanelProps {
 export function EventsPanel({ currentTime }: EventsPanelProps) {
   const [activeTab, setActiveTab] = useState<EventTab>("new_market")
 
-  // 20 newest new markets, regardless of time
+  // 50 newest new markets, regardless of time
   const {
     data: newMarketEventsRaw,
     error: newMarketError,
   } = useSWR<MarketEvent[]>(
-    "/api/market-events?type=new_market&limit=20&hours=0",
+    "/api/market-events?type=new_market&limit=50&hours=0",
     fetcher,
     { refreshInterval: 10_000 },
   )
 
-  // 20 newest “big” state_extreme moves (our price jumps)
+  // 50 newest “big” state_extreme moves (our price jumps)
   const {
     data: priceJumpEventsRaw,
     error: priceJumpError,
   } = useSWR<MarketEvent[]>(
-    "/api/market-events?type=state_extreme&min_ret=0.05&limit=20&hours=0",
+    "/api/market-events?type=state_extreme&min_ret=0.05&limit=50&hours=0",
     fetcher,
     { refreshInterval: 10_000 },
   )
 
-  const newMarketEvents = newMarketEventsRaw ?? []
-  const priceJumpEvents = priceJumpEventsRaw ?? []
+  // Apply front-end de-duping
+  const newMarketEvents = dedupeEvents(newMarketEventsRaw ?? [])
+  const priceJumpEvents = dedupeEvents(priceJumpEventsRaw ?? [])
 
   const activeEvents =
     activeTab === "new_market" ? newMarketEvents : priceJumpEvents
@@ -111,7 +148,15 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
   const error =
     activeTab === "new_market" ? newMarketError : priceJumpError
 
-  if (error) {
+  const hasEvents = activeEvents && activeEvents.length > 0
+
+  // If we have neither data nor error, or explicitly no events, render nothing
+  if (!hasEvents && !error) {
+    return null
+  }
+
+  // If we have an error and *no* data, show a pure error state
+  if (error && !hasEvents) {
     return (
       <p className="text-xs text-destructive">
         Failed to load market events from backend.
@@ -119,9 +164,8 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
     )
   }
 
-  if (!activeEvents || activeEvents.length === 0) {
-    return null
-  }
+  // Otherwise, we have some events. We may also have an error (stale snapshot).
+  const isStale = Boolean(error)
 
   return (
     <div className="mb-8 rounded-lg bg-slate-100 backdrop-blur border border-green-500/20 p-6">
@@ -134,9 +178,7 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
           <div className="flex gap-2 text-xs">
             {(["new_market", "price_jump"] as EventTab[]).map((tab) => {
               const label =
-                tab === "new_market"
-                  ? `New markets (${newMarketEvents.length})`
-                  : `Price jumps (${priceJumpEvents.length})`
+                tab === "new_market" ? "New markets" : "Price jumps"
 
               return (
                 <button
@@ -154,6 +196,23 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
               )
             })}
           </div>
+          {activeTab === "price_jump" && (
+            <p className="text-[0.7rem] text-muted-foreground mt-1">
+              Price moves here are computed from raw microstructure and
+              can differ from Polymarket&apos;s UI.{" "}
+              <Link
+                href="/faq#prices-vs-polymarket"
+                className="underline underline-offset-2 text-primary hover:text-primary/80"
+              >
+                Why?
+              </Link>
+            </p>
+          )}
+          {isStale && (
+            <p className="text-[0.65rem] text-amber-800 bg-amber-100/80 border border-amber-300 rounded px-2 py-1 mt-1 max-w-xs">
+              Latest refresh failed; showing the last successful snapshot.
+            </p>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">
           Updates every 10s
@@ -181,6 +240,8 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
             event.event_type === "state_extreme"
               ? "price jump"
               : event.event_type?.replace(/_/g, " ")
+
+          const isNewMarket = event.event_type === "new_market"
 
           return (
             <div
@@ -218,14 +279,11 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 shrink-0">
-                {/* Price line */}
-                <div className="text-right">
-                  {event.event_type === "new_market" ? (
-                    <div className="font-mono text-xs text-muted-foreground">
-                      —
-                    </div>
-                  ) : (
+              {/* For new markets, hide the right-hand price/percent block entirely */}
+              {!isNewMarket && (
+                <div className="flex items-center gap-4 shrink-0">
+                  {/* Price line */}
+                  <div className="text-right">
                     <div className="font-mono text-xs text-muted-foreground">
                       {typeof event.old_value === "number"
                         ? event.old_value.toFixed(3)
@@ -235,31 +293,31 @@ export function EventsPanel({ currentTime }: EventsPanelProps) {
                         ? event.new_value.toFixed(3)
                         : "—"}
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Percent change */}
-                <div className="font-mono text-sm font-bold">
-                  {pctChange === null ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : (
-                    <span
-                      className={
-                        direction === "up"
-                          ? "text-green-500"
-                          : direction === "down"
-                          ? "text-red-500"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {direction === "up" && "↑ "}
-                      {direction === "down" && "↓ "}
-                      {direction === "flat" && "→ "}
-                      {Math.abs(pctChange).toFixed(1)}%
-                    </span>
-                  )}
+                  {/* Percent change */}
+                  <div className="font-mono text-sm font-bold">
+                    {pctChange === null ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <span
+                        className={
+                          direction === "up"
+                            ? "text-green-500"
+                            : direction === "down"
+                            ? "text-red-500"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {direction === "up" && "↑ "}
+                        {direction === "down" && "↓ "}
+                        {direction === "flat" && "→ "}
+                        {Math.abs(pctChange).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )
         })}
