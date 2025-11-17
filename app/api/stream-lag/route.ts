@@ -28,7 +28,6 @@ export async function GET() {
     const data = JSON.parse(text)
     return NextResponse.json(data)
   } catch (err) {
-    console.error("[stream-lag] error:", err)
     return NextResponse.json(
       { error: "Failed to fetch stream lag", details: String(err) },
       { status: 500 },

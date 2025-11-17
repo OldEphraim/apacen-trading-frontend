@@ -26,7 +26,6 @@ export async function GET() {
     const data = JSON.parse(text)
     return NextResponse.json(data)
   } catch (err) {
-    console.error("[stats] error:", err)
     return NextResponse.json(
       { error: "Failed to fetch stats", details: String(err) },
       { status: 500 }

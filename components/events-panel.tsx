@@ -20,7 +20,6 @@ const fetcher = async (url: string) => {
   const data = await res.json().catch(() => null)
 
   if (!res.ok) {
-    console.error("API error for", url, res.status, data)
     throw new Error(
       (data && (data.error as string)) ||
         `Request failed with status ${res.status}`,

@@ -44,7 +44,6 @@ export async function GET(request: Request) {
     const data = JSON.parse(text)
     return NextResponse.json(data)
   } catch (err) {
-    console.error("[market-events] error:", err)
     return NextResponse.json(
       { error: "Failed to fetch market events", details: String(err) },
       { status: 500 },

@@ -27,7 +27,6 @@ export async function GET() {
     const data = JSON.parse(text)
     return NextResponse.json(data)
   } catch (err) {
-    console.error("[strategies] error:", err)
     return NextResponse.json(
       { error: "Failed to fetch strategies", details: String(err) },
       { status: 500 }
